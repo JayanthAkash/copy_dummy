@@ -1,6 +1,6 @@
+#!/usr/bin/env python
 import rospy # Python library for ROS
 from sensor_msgs.msg import Image # Image is the message type
-from cv_bridge import CvBridge
 from imutils.video.pivideostream import PiVideoStream
 from imutils.video import FPS
 from picamera.array import PiRGBArray
@@ -9,11 +9,20 @@ from lane import *
 import imutils
 import cv2
 from collections import deque
-from simple_pid import PID
+
 from hyperloop.msg import camout
 
 def publish_message():
     pub = rospy.Publisher('camout', camout, queue_size=10)
+    speed = 10 # operating speed in % PWM
+    
+    #Variables to be updated each loop
+    lastTime = 0 
+    lastError = 0
+    
+    # PD constants
+    Kp = 0.4
+    Kd = Kp * 0.65
     # Tells rospy the name of the node.
     # Anonymous = True makes sure the node has a unique name. Random
     # numbers are added to the end of the name.
@@ -23,10 +32,14 @@ def publish_message():
     # Create a VideoCapture object
     # The argument '0' gets the default webcam.
     # Used to convert between ROS and OpenCV images
-    br = CvBridge()
+    
     print("[INFO] sampling THREADED frames from `picamera` module...")
     vs = PiVideoStream().start()
     q=deque([0,0,0,0,0])
+
+    # PD constants
+    Kp = 0.4
+    Kd = Kp * 0.65
 
     # While ROS is still running.
     while not rospy.is_shutdown():
@@ -44,9 +57,20 @@ def publish_message():
             lane_lines_image = display_lines(frame,lane_lines)
             steering_angle = get_steering_angle(frame, lane_lines)
             heading_image = display_heading_line(lane_lines_image,steering_angle)
-            steering_angle = pid(steering_angle)
-            steering_angle-=90
+            
+            now = time.time() # current time variable
+            dt = now - lastTime
+            deviation = steering_angle - 90 # equivalent to angle_to_mid_deg variable
+            error = abs(deviation)
 
+            derivative = kd * (error - lastError) / dt 
+            proportional = kp * error
+            PD = int(speed + derivative + proportional)
+
+            spd = abs(PD)
+            if spd > 25:
+                spd = 25
+            lastError = error
             q.append(steering_angle)
             dummy=q.popleft()
             avg=int(sum(q)/5)
