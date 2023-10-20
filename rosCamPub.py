@@ -9,20 +9,29 @@ from lane import *
 import imutils
 import cv2
 from collections import deque
-
+speed = 0
+flag=True
 from hyperloop.msg import camout
+def check_start(frame):
+    hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
+    # hsv=frame
+    # Define lower and upper HSV values for green color
+    lower_green = np.array( [ 30, 180,  160])    # Lower HSV range for green
+    upper_green = np.array( [ 90, 220,  220])  # Upper HSV range for green
 
+    # Create a mask. Threshold the HSV image to get only green colors
+    green_mask = cv2.inRange(hsv, lower_green, upper_green)
+    if (np.sum(green_mask)>1000):
+        speed=25
+        flag=False
 def publish_message():
     pub = rospy.Publisher('camout', camout, queue_size=10)
-    speed = 10 # operating speed in % PWM
+    # operating speed in % PWM
     
     #Variables to be updated each loop
     lastTime = 0 
     lastError = 0
-    
-    # PD constants
-    Kp = 0.4
-    Kd = Kp * 0.65
+
     # Tells rospy the name of the node.
     # Anonymous = True makes sure the node has a unique name. Random
     # numbers are added to the end of the name.
@@ -38,20 +47,24 @@ def publish_message():
     q=deque([0,0,0,0,0])
 
     # PD constants
-    Kp = 0.4
-    Kd = Kp * 0.65
+    Kd = 0.4
+    Kp = Kd * 0.65
 
     # While ROS is still running.
     while not rospy.is_shutdown():
+        
     
         # Capture frame-by-frame
         # This method returns True/False as well
         # as the video frame.
         frame = vs.read()
-        frame = imutils.resize(frame, width=640, height=480)
+        if flag:
+            check_start(frame)
+            continue
         avg=0
         temp=camout()
         if frame is not None:
+            frame = imutils.resize(frame, width=640, height=480)
             frame,line_segments = find_and_draw_lanes(frame)
             lane_lines = average_slope_intercept(frame,line_segments)
             lane_lines_image = display_lines(frame,lane_lines)
@@ -65,7 +78,7 @@ def publish_message():
 
             derivative = kd * (error - lastError) / dt 
             proportional = kp * error
-            PD = int(speed + derivative + proportional)
+            PD = int(speed - derivative - proportional)
 
             spd = abs(PD)
             if spd > 25:
@@ -80,6 +93,7 @@ def publish_message():
                 avg=-45
             if (avg>35):
                 avg=35
+            lastTime=now
         else:
             speed = 0
             avg = 0
