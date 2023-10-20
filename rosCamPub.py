@@ -58,13 +58,13 @@ def publish_message():
         # This method returns True/False as well
         # as the video frame.
         frame = vs.read()
-        if flag:
-            check_start(frame)
-            continue
         avg=0
         temp=camout()
         if frame is not None:
             frame = imutils.resize(frame, width=640, height=480)
+            if flag:
+                check_start(frame)
+                continue
             frame,line_segments = find_and_draw_lanes(frame)
             lane_lines = average_slope_intercept(frame,line_segments)
             lane_lines_image = display_lines(frame,lane_lines)
