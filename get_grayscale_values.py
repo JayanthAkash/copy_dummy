@@ -5,7 +5,7 @@ import readchar
 import os
 
 px = Picarx()
-print( px.line_reference,"reference")
+#print( px.line_reference,"reference")
 while True:
   gm_val_list = px.get_grayscale_data()
   print("gm_val_list:",gm_val_list)
